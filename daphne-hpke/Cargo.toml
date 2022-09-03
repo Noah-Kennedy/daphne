@@ -1,0 +1,13 @@
+[package]
+name = "daphne-hpke"
+version = "0.1.0"
+edition = "2021"
+authors = ["Tanya Verma <tverma@cloudflare.com>"]
+license = "BSD-3-Clause"
+
+
+[dependencies]
+ring = "0.16.20"
+x25519-dalek = "1"
+elliptic-curve = { version = "0.11.12", features = ["arithmetic", "pem"]}
+p256 = { version = "0.10.1", features = ["ecdh", "pem"]}
