@@ -1,0 +1,9 @@
+name = "empty"
+main = "build/worker/shim.mjs"
+compatibility_date = "2022-10-14"
+
+[[rules]]
+globs = ["**/*.wasm"]
+type = "CompiledWasm"
+fallthrough = false
+

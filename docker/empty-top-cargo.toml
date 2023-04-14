@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: BSD-3-Clause
+
+[workspace]
+
+members = [
+    "empty",
+]
+
+[profile.release]
+# Tell `rustc` to optimize for small code size.
+opt-level = "s"
