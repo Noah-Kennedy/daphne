@@ -12,7 +12,7 @@ RUN apk add --update \
     npm \
     openssl-dev \
     wasm-pack
-RUN npm install -g wrangler@2.12.2
+RUN npm install -g wrangler@2.16
 
 # Use the fast HTTP-based re gistry instead of cloning the index from github
 COPY docker/config.toml /usr/local/cargo
@@ -43,8 +43,8 @@ WORKDIR /tmp/dap_test/daphne_worker_test
 RUN wrangler publish --dry-run
 
 FROM alpine:latest AS test
-RUN apk add --update npm bash wasm-pack
-RUN npm install -g wrangler@2.12.2
+RUN apk add --update npm bash
+RUN npm install -g wrangler@2.16
 COPY docker/no-build-wrangler.toml /wrangler.toml
 COPY --from=builder /tmp/dap_test/daphne_worker_test/build/worker/* /build/worker/
 COPY --from=builder /usr/local/cargo/bin/worker-build /worker-build
