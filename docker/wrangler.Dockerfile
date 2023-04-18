@@ -42,11 +42,12 @@ COPY docker/wrangler.toml ./daphne_worker_test/wrangler.toml
 WORKDIR /tmp/dap_test/daphne_worker_test
 RUN wrangler publish --dry-run
 
-FROM alpine:3.16 AS test
-RUN apk add --update npm bash
-RUN npm install -g miniflare@2.12.2
-COPY --from=builder /tmp/dap_test/daphne_worker_test/wrangler.toml /wrangler.toml
+FROM alpine:latest AS test
+RUN apk add --update npm bash wasm-pack
+RUN npm install -g wrangler@2.12.2
+COPY docker/no-build-wrangler.toml /wrangler.toml
 COPY --from=builder /tmp/dap_test/daphne_worker_test/build/worker/* /build/worker/
+COPY --from=builder /usr/local/cargo/bin/worker-build /worker-build
 EXPOSE 8080
 # `-B ""` to skip build command.
 ENTRYPOINT ["miniflare", "--modules", "--modules-rule=CompiledWasm=**/*.wasm", "/build/worker/shim.mjs", "-B", ""]
@@ -57,4 +58,4 @@ ENTRYPOINT ["miniflare", "--modules", "--modules-rule=CompiledWasm=**/*.wasm", "
 
 FROM test AS leader
 
-ENTRYPOINT ["miniflare", "--modules", "--modules-rule=CompiledWasm=**/*.wasm", "/build/worker/shim.mjs", "-B", "", "-p", "8080", "--wrangler-env=leader"]
+ENTRYPOINT ["npx", "wrangler", "dev", "-e", "leader", "--port", "8080", "--local"]
