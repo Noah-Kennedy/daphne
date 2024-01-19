@@ -4,17 +4,16 @@
 //! Implementation of the helper side of the protocol
 
 use crate::config::DaphneWorker;
-use async_trait::async_trait;
+use daphne::roles::helper::LocalDapHelper;
 use daphne::{
-    error::DapAbort, fatal_error, messages::TaskId, roles::DapHelper, DapAggregationJobState,
-    DapError, MetaAggregationJobId,
+    error::DapAbort, fatal_error, messages::TaskId, DapAggregationJobState, DapError,
+    MetaAggregationJobId,
 };
 use daphne_service_utils::auth::DaphneAuth;
 use daphne_service_utils::durable_requests::bindings::{DurableMethod, HelperState};
 use prio::codec::Encode;
 
-#[async_trait(?Send)]
-impl<'srv> DapHelper<DaphneAuth> for DaphneWorker<'srv> {
+impl<'srv> LocalDapHelper<DaphneAuth> for DaphneWorker<'srv> {
     async fn put_helper_state_if_not_exists<Id>(
         &self,
         task_id: &TaskId,

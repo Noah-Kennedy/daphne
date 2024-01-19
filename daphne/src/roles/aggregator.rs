@@ -3,14 +3,13 @@
 
 use std::collections::HashSet;
 
-use async_trait::async_trait;
 use prio::codec::Encode;
 
 use crate::{
     audit_log::AuditLog,
     constants::DapMediaType,
     error::DapAbort,
-    hpke::{HpkeConfig, HpkeDecrypter},
+    hpke::{HpkeConfig, HpkeDecrypter, LocalHpkeDecrypter},
     messages::{
         BatchId, BatchSelector, HpkeConfigList, PartialBatchSelector, ReportId, TaskId, Time,
     },
@@ -22,9 +21,8 @@ use crate::{
 
 /// Report initializer. Used by a DAP Aggregator [`DapAggregator`] when initializing an aggregation
 /// job.
-#[cfg_attr(not(feature = "send-traits"), async_trait(?Send))]
-#[cfg_attr(feature = "send-traits", async_trait)]
-pub trait DapReportInitializer {
+#[trait_variant::make(DapReportInitializer: Send)]
+pub trait LocalDapReportInitializer {
     /// Initialize a sequence of reports that are in the "consumed" state by initializing VDAF
     /// preparation.
     async fn initialize_reports<'req>(
@@ -45,9 +43,10 @@ pub enum MergeAggShareError {
 }
 
 /// DAP Aggregator functionality.
-#[cfg_attr(not(feature = "send-traits"), async_trait(?Send))]
-#[cfg_attr(feature = "send-traits", async_trait)]
-pub trait DapAggregator<S: Sync>: HpkeDecrypter + DapReportInitializer + Sized {
+#[trait_variant::make(DapAggregator: Send | HpkeDecrypter +      DapReportInitializer)]
+pub trait LocalDapAggregator<S: Sync>:
+    LocalHpkeDecrypter + LocalDapReportInitializer + Sized
+{
     /// A refernce to a task configuration stored by the Aggregator.
     type WrappedDapTaskConfig<'a>: AsRef<DapTaskConfig> + Send
     where
@@ -172,7 +171,7 @@ pub async fn handle_hpke_config_req<S, A>(
 ) -> Result<DapResponse, DapError>
 where
     S: Sync,
-    A: DapAggregator<S>,
+    A: LocalDapAggregator<S>,
 {
     let metrics = aggregator.metrics();
 
@@ -180,34 +179,35 @@ where
         .get_hpke_config_for(req.version, task_id.as_ref())
         .await?;
 
-    if let Some(task_id) = task_id {
-        let task_config = aggregator
-            .get_task_config_for(&task_id)
-            .await?
-            .ok_or(DapAbort::UnrecognizedTask)?;
+    // if let Some(task_id) = task_id {
+    //     let task_config = aggregator
+    //         .get_task_config_for(&task_id)
+    //         .await?
+    //         .ok_or(DapAbort::UnrecognizedTask)?;
 
-        // Check whether the DAP version in the request matches the task config.
-        if task_config.as_ref().version != req.version {
-            return Err(
-                DapAbort::version_mismatch(req.version, task_config.as_ref().version).into(),
-            );
-        }
-    }
+    //     // Check whether the DAP version in the request matches the task config.
+    //     if task_config.as_ref().version != req.version {
+    //         return Err(
+    //             DapAbort::version_mismatch(req.version, task_config.as_ref().version).into(),
+    //         );
+    //     }
+    // }
 
-    let payload = match req.version {
-        DapVersion::Draft02 => hpke_config.as_ref().get_encoded(),
-        DapVersion::DraftLatest => {
-            let hpke_config_list = HpkeConfigList {
-                hpke_configs: vec![hpke_config.as_ref().clone()],
-            };
-            hpke_config_list.get_encoded()
-        }
-    };
+    // let payload = match req.version {
+    //     DapVersion::Draft02 => hpke_config.as_ref().get_encoded(),
+    //     DapVersion::DraftLatest => {
+    //         let hpke_config_list = HpkeConfigList {
+    //             hpke_configs: vec![hpke_config.as_ref().clone()],
+    //         };
+    //         hpke_config_list.get_encoded()
+    //     }
+    // };
 
-    metrics.inbound_req_inc(DaphneRequestType::HpkeConfig);
-    Ok(DapResponse {
-        version: req.version,
-        media_type: DapMediaType::HpkeConfigList,
-        payload,
-    })
+    // metrics.inbound_req_inc(DaphneRequestType::HpkeConfig);
+    // Ok(DapResponse {
+    //     version: req.version,
+    //     media_type: DapMediaType::HpkeConfigList,
+    //     payload,
+    // })
+    todo!()
 }

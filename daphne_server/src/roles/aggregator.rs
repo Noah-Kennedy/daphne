@@ -3,7 +3,6 @@
 
 use std::{borrow::Cow, time::SystemTime};
 
-use axum::async_trait;
 use daphne::{
     audit_log::{AuditLog, NoopAuditLog},
     auth::{BearerToken, BearerTokenProvider},
@@ -31,7 +30,6 @@ use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 
 use crate::storage_proxy_connection::kv;
 
-#[async_trait]
 impl DapAggregator<DaphneAuth> for crate::App {
     async fn try_put_agg_share_span(
         &self,
@@ -386,7 +384,6 @@ impl DapAggregator<DaphneAuth> for crate::App {
     }
 }
 
-#[async_trait]
 impl DapReportInitializer for crate::App {
     async fn initialize_reports<'req>(
         &self,
@@ -418,7 +415,6 @@ impl DapReportInitializer for crate::App {
     }
 }
 
-#[async_trait]
 impl HpkeDecrypter for crate::App {
     type WrappedHpkeConfig<'a> = HpkeConfig
     where
@@ -495,7 +491,6 @@ impl HpkeDecrypter for crate::App {
     }
 }
 
-#[async_trait]
 impl BearerTokenProvider for crate::App {
     type WrappedBearerToken<'a> = Cow<'a,  BearerToken>
         where Self: 'a;

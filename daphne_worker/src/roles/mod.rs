@@ -11,25 +11,23 @@ mod helper;
 mod leader;
 
 use crate::config::{BearerTokenKvPair, DaphneWorker};
-use async_trait::async_trait;
 use daphne::{
-    auth::BearerTokenProvider,
+    auth::LocalBearerTokenProvider,
     fatal_error,
-    hpke::{HpkeConfig, HpkeDecrypter},
+    hpke::{HpkeConfig, LocalHpkeDecrypter},
     messages::{HpkeCiphertext, TaskId, TransitionFailure},
-    roles::DapAggregator,
+    roles::aggregator::LocalDapAggregator,
     DapError, DapTaskConfig, DapVersion,
 };
 
-#[async_trait(?Send)]
-impl<'srv> HpkeDecrypter for DaphneWorker<'srv> {
+impl<'srv> LocalHpkeDecrypter for DaphneWorker<'srv> {
     type WrappedHpkeConfig<'a> = HpkeConfig
         where Self: 'a;
 
     async fn get_hpke_config_for<'s>(
         &'s self,
         version: DapVersion,
-        _task_id: Option<&TaskId>,
+        _: Option<&TaskId>,
     ) -> std::result::Result<Self::WrappedHpkeConfig<'s>, DapError> {
         self.get_hpke_receiver_config(version, |receiver_config_list| {
             // Assume the first HPKE config in the receiver list has the highest preference.
@@ -85,8 +83,7 @@ impl<'srv> HpkeDecrypter for DaphneWorker<'srv> {
     }
 }
 
-#[async_trait(?Send)]
-impl<'srv> BearerTokenProvider for DaphneWorker<'srv> {
+impl<'srv> LocalBearerTokenProvider for DaphneWorker<'srv> {
     type WrappedBearerToken<'a> = BearerTokenKvPair<'a>
         where Self: 'a;
 

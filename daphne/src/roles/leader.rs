@@ -3,14 +3,13 @@
 
 use std::collections::HashMap;
 
-use async_trait::async_trait;
 use prio::codec::{Decode, ParameterizedDecode, ParameterizedEncode};
 use tracing::{debug, error};
 use url::Url;
 
 use super::{
-    aggregator::MergeAggShareError, check_batch, check_request_content_type, resolve_taskprov,
-    DapAggregator,
+    aggregator::{LocalDapAggregator, MergeAggShareError},
+    check_batch, check_request_content_type, resolve_taskprov, DapAggregator,
 };
 use crate::{
     constants::DapMediaType,
@@ -42,7 +41,7 @@ enum LeaderHttpRequestMethod {
 }
 
 async fn leader_send_http_request<S: Sync>(
-    role: &impl DapLeader<S>,
+    role: &impl LocalDapLeader<S>,
     task_id: &TaskId,
     task_config: &DapTaskConfig,
     opts: LeaderHttpRequestOptions<'_>,
@@ -85,9 +84,8 @@ async fn leader_send_http_request<S: Sync>(
 }
 
 /// A party in the DAP protocol who is authorized to send requests to another party.
-#[cfg_attr(not(feature = "send-traits"), async_trait(?Send))]
-#[cfg_attr(feature = "send-traits", async_trait)]
-pub trait DapAuthorizedSender<S> {
+#[trait_variant::make(DapAuthorizedSender: Send)]
+pub trait LocalDapAuthorizedSender<S> {
     /// Add authorization to an outbound DAP request with the given task ID, media type, and payload.
     async fn authorize(
         &self,
@@ -99,9 +97,8 @@ pub trait DapAuthorizedSender<S> {
 }
 
 /// DAP Leader functionality.
-#[cfg_attr(not(feature = "send-traits"), async_trait(?Send))]
-#[cfg_attr(feature = "send-traits", async_trait)]
-pub trait DapLeader<S: Sync>: DapAuthorizedSender<S> + DapAggregator<S> {
+#[trait_variant::make(DapLeader: Send | DapAuthorizedSender<S> +      DapAggregator<S>)]
+pub trait LocalDapLeader<S: Sync>: LocalDapAuthorizedSender<S> + LocalDapAggregator<S> {
     /// Data type used to guide selection of a set of reports for aggregation.
     type ReportSelector;
 
@@ -154,7 +151,7 @@ pub trait DapLeader<S: Sync>: DapAuthorizedSender<S> + DapAggregator<S> {
 }
 
 /// Handle a report from a Client.
-pub async fn handle_upload_req<S: Sync, A: DapLeader<S>>(
+pub async fn handle_upload_req<S: Sync, A: LocalDapLeader<S>>(
     aggregator: &A,
     req: &DapRequest<S>,
 ) -> Result<(), DapError> {
@@ -221,7 +218,7 @@ pub async fn handle_upload_req<S: Sync, A: DapLeader<S>>(
 
 /// Handle a collect job from the Collector. The response is the URI that the Collector will
 /// poll later on to get the collection.
-pub async fn handle_collect_job_req<S: Sync, A: DapLeader<S>>(
+pub async fn handle_collect_job_req<S: Sync, A: LocalDapLeader<S>>(
     aggregator: &A,
     req: &DapRequest<S>,
 ) -> Result<Url, DapError> {
@@ -318,7 +315,7 @@ pub async fn handle_collect_job_req<S: Sync, A: DapLeader<S>>(
 // encode in `AggregationJobInitReq`, in which case this method will panic. We should increase
 // the capacity of this message in the spec. In the meantime, we should at a minimum log this
 // when it happens.
-pub async fn run_agg_job<S: Sync, A: DapLeader<S>>(
+pub async fn run_agg_job<S: Sync, A: LocalDapLeader<S>>(
     aggregator: &A,
     task_id: &TaskId,
     task_config: &DapTaskConfig,
@@ -487,7 +484,7 @@ pub async fn run_agg_job<S: Sync, A: DapLeader<S>>(
 /// Handle a pending collection job. If the results are ready, then compute the aggregate
 /// results and store them to be retrieved by the Collector later. Returns the number of
 /// reports in the batch.
-pub async fn run_collect_job<S: Sync, A: DapLeader<S>>(
+pub async fn run_collect_job<S: Sync, A: LocalDapLeader<S>>(
     aggregator: &A,
     task_id: &TaskId,
     collect_id: &CollectionJobId,
@@ -601,7 +598,7 @@ pub async fn run_collect_job<S: Sync, A: DapLeader<S>>(
 /// synchronize collect and aggregation jobs. If used in a large DAP deployment, it is likely
 /// create a bottleneck. Such deployments can improve throughput by running many aggregation
 /// jobs in parallel.
-pub async fn process<S: Sync, A: DapLeader<S>>(
+pub async fn process<S: Sync, A: LocalDapLeader<S>>(
     aggregator: &A,
     selector: &A::ReportSelector,
     host: &str,

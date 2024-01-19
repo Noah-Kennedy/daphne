@@ -16,7 +16,6 @@ use crate::{
     messages::{decode_u16_bytes, encode_u16_bytes, HpkeCiphertext, TaskId, TransitionFailure},
     DapError, DapVersion,
 };
-use async_trait::async_trait;
 use prio::codec::{CodecError, Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
@@ -206,9 +205,8 @@ impl HpkeConfig {
 }
 
 /// HPKE decrypter functionality.
-#[cfg_attr(not(feature = "send-traits"), async_trait(?Send))]
-#[cfg_attr(feature = "send-traits", async_trait)]
-pub trait HpkeDecrypter {
+#[trait_variant::make(HpkeDecrypter: Send)]
+pub trait LocalHpkeDecrypter {
     /// Return type of `get_hpke_config_for()`, wraps a reference to an HPKE config.
     type WrappedHpkeConfig<'a>: AsRef<HpkeConfig> + Send
     where
@@ -330,8 +328,6 @@ impl TryFrom<(HpkeConfig, HpkePrivateKey)> for HpkeReceiverConfig {
     }
 }
 
-#[cfg_attr(not(feature = "send-traits"), async_trait(?Send))]
-#[cfg_attr(feature = "send-traits", async_trait)]
 impl HpkeDecrypter for HpkeReceiverConfig {
     type WrappedHpkeConfig<'a> = HpkeConfig;
 

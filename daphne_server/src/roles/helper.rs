@@ -1,7 +1,6 @@
 // Copyright (c) 2024 Cloudflare, Inc. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause
 
-use axum::async_trait;
 use daphne::{
     error::DapAbort,
     fatal_error,
@@ -12,7 +11,6 @@ use daphne::{
 use daphne_service_utils::{auth::DaphneAuth, durable_requests::bindings};
 use prio::codec::Encode;
 
-#[async_trait]
 impl DapHelper<DaphneAuth> for crate::App {
     async fn put_helper_state_if_not_exists<Id>(
         &self,

@@ -11,7 +11,7 @@ pub(crate) mod xof;
 use crate::{
     error::DapAbort,
     fatal_error,
-    hpke::{HpkeConfig, HpkeDecrypter},
+    hpke::{HpkeConfig, HpkeDecrypter, LocalHpkeDecrypter},
     messages::{
         encode_u32_bytes, AggregationJobContinueReq, AggregationJobInitReq, AggregationJobResp,
         Base64Encode, BatchSelector, Extension, HpkeCiphertext, PartialBatchSelector,
@@ -19,7 +19,7 @@ use crate::{
         Time, Transition, TransitionFailure, TransitionVar,
     },
     metrics::DaphneMetrics,
-    roles::DapReportInitializer,
+    roles::{aggregator::LocalDapReportInitializer, DapReportInitializer},
     vdaf::{
         prio2::{
             prio2_decode_prep_state, prio2_prep_finish, prio2_prep_finish_from_shares,
@@ -177,7 +177,7 @@ pub enum EarlyReportStateConsumed {
 impl EarlyReportStateConsumed {
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn consume(
-        decrypter: &impl HpkeDecrypter,
+        decrypter: &impl LocalHpkeDecrypter,
         is_leader: bool,
         task_id: &TaskId,
         task_config: &DapTaskConfig,
@@ -830,8 +830,8 @@ impl VdafConfig {
     #[allow(clippy::too_many_arguments)]
     pub async fn produce_agg_job_init_req(
         &self,
-        decrypter: &impl HpkeDecrypter,
-        initializer: &impl DapReportInitializer,
+        decrypter: &impl LocalHpkeDecrypter,
+        initializer: &impl LocalDapReportInitializer,
         task_id: &TaskId,
         task_config: &DapTaskConfig,
         agg_job_id: &MetaAggregationJobId,
@@ -955,14 +955,14 @@ impl VdafConfig {
 
     pub(crate) async fn helper_initialize_reports<'req>(
         &self,
-        decrypter: &impl HpkeDecrypter,
-        initializer: &impl DapReportInitializer,
+        decrypter: &impl LocalHpkeDecrypter,
+        initializer: &impl LocalDapReportInitializer,
         task_id: &TaskId,
         task_config: &DapTaskConfig,
         agg_job_init_req: &'req AggregationJobInitReq,
     ) -> Result<Vec<EarlyReportStateInitialized>, DapError> {
         let num_reports = agg_job_init_req.prep_inits.len();
-        let mut processed = HashSet::with_capacity(num_reports);
+        let mut processed = HashSet::<ReportId>::with_capacity(num_reports);
         let mut consumed_reports = Vec::with_capacity(num_reports);
         for prep_init in &agg_job_init_req.prep_inits {
             if processed.contains(&prep_init.report_share.report_metadata.id) {

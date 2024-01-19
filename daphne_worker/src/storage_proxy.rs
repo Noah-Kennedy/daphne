@@ -83,7 +83,7 @@ const KV_BINDING_DAP_CONFIG: &str = "DAP_CONFIG";
 pub async fn handle_request(
     req: Request,
     env: Env,
-    _ctx: worker::Context,
+    _: worker::Context,
 ) -> worker::Result<Response> {
     let path = req.path();
     if let Some(uri) = path.strip_prefix(KV_PATH_PREFIX) {

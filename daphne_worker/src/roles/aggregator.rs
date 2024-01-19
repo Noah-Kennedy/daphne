@@ -7,15 +7,14 @@ use crate::{
     config::{DapTaskConfigKvPair, DaphneWorker},
     now,
 };
-use async_trait::async_trait;
 use daphne::{
     audit_log::AuditLog,
-    auth::BearerTokenProvider,
+    auth::LocalBearerTokenProvider,
     fatal_error,
     hpke::HpkeConfig,
     messages::{BatchId, BatchSelector, PartialBatchSelector, TaskId, TransitionFailure},
     metrics::DaphneMetrics,
-    roles::{aggregator::MergeAggShareError, DapAggregator, DapReportInitializer},
+    roles::aggregator::{LocalDapAggregator, LocalDapReportInitializer, MergeAggShareError},
     vdaf::{EarlyReportState, EarlyReportStateConsumed, EarlyReportStateInitialized},
     DapAggregateShare, DapAggregateSpan, DapBatchBucket, DapError, DapGlobalConfig, DapRequest,
     DapSender, DapTaskConfig,
@@ -27,14 +26,13 @@ use daphne_service_utils::{
 };
 use futures::{future::try_join_all, StreamExt};
 
-#[async_trait(?Send)]
-impl DapReportInitializer for DaphneWorker<'_> {
+impl LocalDapReportInitializer for DaphneWorker<'_> {
     async fn initialize_reports<'req>(
         &self,
         is_leader: bool,
-        _task_id: &TaskId,
+        _: &TaskId,
         task_config: &DapTaskConfig,
-        _part_batch_sel: &PartialBatchSelector,
+        _: &PartialBatchSelector,
         consumed_reports: Vec<EarlyReportStateConsumed>,
     ) -> Result<Vec<EarlyReportStateInitialized>, DapError> {
         let min_time = self.least_valid_report_time(self.get_current_time());
@@ -69,8 +67,7 @@ impl DapReportInitializer for DaphneWorker<'_> {
     }
 }
 
-#[async_trait(?Send)]
-impl<'srv> DapAggregator<DaphneAuth> for DaphneWorker<'srv> {
+impl<'srv> LocalDapAggregator<DaphneAuth> for DaphneWorker<'srv> {
     type WrappedDapTaskConfig<'a> = DapTaskConfigKvPair<'a>
         where Self: 'a;
 

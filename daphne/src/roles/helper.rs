@@ -3,11 +3,13 @@
 
 use std::{collections::HashMap, sync::Once};
 
-use async_trait::async_trait;
 use prio::codec::{Encode, ParameterizedDecode};
 use tracing::error;
 
-use super::{check_batch, check_request_content_type, resolve_taskprov, DapAggregator};
+use super::{
+    aggregator::LocalDapAggregator, check_batch, check_request_content_type, resolve_taskprov,
+    DapAggregator,
+};
 use crate::{
     audit_log::AggregationJobAuditAction,
     constants::DapMediaType,
@@ -27,9 +29,8 @@ use crate::{
 };
 
 /// DAP Helper functionality.
-#[cfg_attr(not(feature = "send-traits"), async_trait(?Send))]
-#[cfg_attr(feature = "send-traits", async_trait)]
-pub trait DapHelper<S: Sync>: DapAggregator<S> {
+#[trait_variant::make(DapHelper: Send | DapAggregator<S>)]
+pub trait LocalDapHelper<S: Sync>: LocalDapAggregator<S> {
     /// Store the Helper's aggregation-flow state unless it already exists. Returns a boolean
     /// indicating if the operation succeeded.
     async fn put_helper_state_if_not_exists<Id>(
@@ -52,7 +53,7 @@ pub trait DapHelper<S: Sync>: DapAggregator<S> {
         Id: Into<MetaAggregationJobId> + Send;
 }
 
-pub async fn handle_agg_job_init_req<'req, S: Sync, A: DapHelper<S>>(
+pub async fn handle_agg_job_init_req<'req, S: Sync, A: LocalDapHelper<S>>(
     aggregator: &A,
     req: &'req DapRequest<S>,
 ) -> Result<DapResponse, DapError> {
@@ -148,82 +149,83 @@ pub async fn handle_agg_job_init_req<'req, S: Sync, A: DapHelper<S>>(
         )
         .await?;
 
-    let agg_job_resp = match task_config.version {
-        DapVersion::Draft02 => {
-            let DapHelperAggregationJobTransition::Continued(state, agg_job_resp) =
-                task_config.vdaf.handle_agg_job_init_req(
-                    task_id,
-                    task_config,
-                    &HashMap::default(), // no reports have been processed yet
-                    &initialized_reports,
-                    &agg_job_init_req,
-                    metrics,
-                )?
-            else {
-                return Err(fatal_error!(err = "unexpected transition"));
-            };
+    // let agg_job_resp = match task_config.version {
+    //     DapVersion::Draft02 => {
+    //         let DapHelperAggregationJobTransition::Continued(state, agg_job_resp) =
+    //             task_config.vdaf.handle_agg_job_init_req(
+    //                 task_id,
+    //                 task_config,
+    //                 &HashMap::default(), // no reports have been processed yet
+    //                 &initialized_reports,
+    //                 &agg_job_init_req,
+    //                 metrics,
+    //             )?
+    //         else {
+    //             return Err(fatal_error!(err = "unexpected transition"));
+    //         };
 
-            if !aggregator
-                .put_helper_state_if_not_exists(task_id, agg_job_id, &state)
-                .await?
-            {
-                // TODO spec: Consider an explicit abort for this case.
-                return Err(DapAbort::BadRequest(
-                    "unexpected message for aggregation job (already exists)".into(),
-                )
-                .into());
-            }
-            metrics.agg_job_started_inc();
-            agg_job_resp
-        }
+    //         if !aggregator
+    //             .put_helper_state_if_not_exists(task_id, agg_job_id, &state)
+    //             .await?
+    //         {
+    //             // TODO spec: Consider an explicit abort for this case.
+    //             return Err(DapAbort::BadRequest(
+    //                 "unexpected message for aggregation job (already exists)".into(),
+    //             )
+    //             .into());
+    //         }
+    //         metrics.agg_job_started_inc();
+    //         agg_job_resp
+    //     }
 
-        DapVersion::DraftLatest => {
-            let agg_job_resp = finish_agg_job_and_aggregate(
-                aggregator,
-                task_id,
-                task_config,
-                metrics,
-                |report_status| {
-                    let DapHelperAggregationJobTransition::Finished(agg_span, agg_job_resp) =
-                        task_config.vdaf.handle_agg_job_init_req(
-                            task_id,
-                            task_config,
-                            report_status,
-                            &initialized_reports,
-                            &agg_job_init_req,
-                            metrics,
-                        )?
-                    else {
-                        return Err(fatal_error!(err = "unexpected transition"));
-                    };
-                    Ok((agg_span, agg_job_resp))
-                },
-            )
-            .await?;
+    //     DapVersion::DraftLatest => {
+    //         let agg_job_resp = finish_agg_job_and_aggregate(
+    //             aggregator,
+    //             task_id,
+    //             task_config,
+    //             metrics,
+    //             |report_status| {
+    //                 let DapHelperAggregationJobTransition::Finished(agg_span, agg_job_resp) =
+    //                     task_config.vdaf.handle_agg_job_init_req(
+    //                         task_id,
+    //                         task_config,
+    //                         report_status,
+    //                         &initialized_reports,
+    //                         &agg_job_init_req,
+    //                         metrics,
+    //                     )?
+    //                 else {
+    //                     return Err(fatal_error!(err = "unexpected transition"));
+    //                 };
+    //                 Ok((agg_span, agg_job_resp))
+    //             },
+    //         )
+    //         .await?;
 
-            metrics.agg_job_started_inc();
-            metrics.agg_job_completed_inc();
-            agg_job_resp
-        }
-    };
+    //         metrics.agg_job_started_inc();
+    //         metrics.agg_job_completed_inc();
+    //         agg_job_resp
+    //     }
+    // };
 
-    aggregator.audit_log().on_aggregation_job(
-        aggregator.host(),
-        task_id,
-        task_config,
-        agg_job_init_req.prep_inits.len() as u64,
-        AggregationJobAuditAction::Init,
-    );
+    // aggregator.audit_log().on_aggregation_job(
+    //     aggregator.host(),
+    //     task_id,
+    //     task_config,
+    //     agg_job_init_req.prep_inits.len() as u64,
+    //     AggregationJobAuditAction::Init,
+    // );
 
-    metrics.inbound_req_inc(DaphneRequestType::Aggregate);
-    Ok(DapResponse {
-        version: req.version,
-        media_type: DapMediaType::AggregationJobResp,
-        payload: agg_job_resp.get_encoded(),
-    })
+    // metrics.inbound_req_inc(DaphneRequestType::Aggregate);
+    // Ok(DapResponse {
+    //     version: req.version,
+    //     media_type: DapMediaType::AggregationJobResp,
+    //     payload: agg_job_resp.get_encoded(),
+    // })
+    todo!()
 }
 
-pub async fn handle_agg_job_cont_req<'req, S: Sync, A: DapHelper<S>>(
+pub async fn handle_agg_job_cont_req<'req, S: Sync, A: LocalDapHelper<S>>(
     aggregator: &A,
     req: &'req DapRequest<S>,
 ) -> Result<DapResponse, DapError> {
@@ -305,7 +307,7 @@ pub async fn handle_agg_job_cont_req<'req, S: Sync, A: DapHelper<S>>(
 }
 
 /// Handle a request pertaining to an aggregation job.
-pub async fn handle_agg_job_req<'req, S: Sync, A: DapHelper<S>>(
+pub async fn handle_agg_job_req<'req, S: Sync, A: LocalDapHelper<S>>(
     aggregator: &A,
     req: &DapRequest<S>,
 ) -> Result<DapResponse, DapError> {
@@ -319,7 +321,7 @@ pub async fn handle_agg_job_req<'req, S: Sync, A: DapHelper<S>>(
 
 /// Handle a request for an aggregate share. This is called by the Leader to complete a
 /// collection job.
-pub async fn handle_agg_share_req<'req, S: Sync, A: DapHelper<S>>(
+pub async fn handle_agg_share_req<'req, S: Sync, A: LocalDapHelper<S>>(
     aggregator: &A,
     req: &DapRequest<S>,
 ) -> Result<DapResponse, DapError> {
@@ -476,7 +478,7 @@ fn resolve_agg_job_id<'id, S>(
 }
 
 async fn finish_agg_job_and_aggregate<S: Sync>(
-    helper: &impl DapHelper<S>,
+    helper: &impl LocalDapHelper<S>,
     task_id: &TaskId,
     task_config: &DapTaskConfig,
     metrics: &DaphneMetrics,

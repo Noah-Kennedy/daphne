@@ -4,9 +4,8 @@
 //! Implementation of the leader side of the protocol
 
 use crate::config::DaphneWorker;
-use async_trait::async_trait;
 use daphne::{
-    auth::BearerTokenProvider,
+    auth::LocalBearerTokenProvider,
     constants::DapMediaType,
     error::DapAbort,
     fatal_error,
@@ -14,7 +13,7 @@ use daphne::{
         Base64Encode, Collection, CollectionJobId, CollectionReq, PartialBatchSelector, Report,
         TaskId, TransitionFailure,
     },
-    roles::{DapAuthorizedSender, DapLeader},
+    roles::leader::{LocalDapAuthorizedSender, LocalDapLeader},
     DapCollectJob, DapError, DapQueryConfig, DapRequest, DapResponse, DapTaskConfig,
 };
 use daphne_service_utils::durable_requests::bindings::{
@@ -27,14 +26,13 @@ use std::collections::HashMap;
 use tracing::debug;
 use url::Url;
 
-#[async_trait(?Send)]
-impl DapAuthorizedSender<DaphneAuth> for DaphneWorker<'_> {
+impl LocalDapAuthorizedSender<DaphneAuth> for DaphneWorker<'_> {
     async fn authorize(
         &self,
         task_id: &TaskId,
         task_config: &DapTaskConfig,
         media_type: &DapMediaType,
-        _payload: &[u8],
+        _: &[u8],
     ) -> std::result::Result<DaphneAuth, DapError> {
         Ok(DaphneAuth {
             bearer_token: Some(
@@ -50,8 +48,7 @@ impl DapAuthorizedSender<DaphneAuth> for DaphneWorker<'_> {
     }
 }
 
-#[async_trait(?Send)]
-impl<'srv> DapLeader<DaphneAuth> for DaphneWorker<'srv> {
+impl<'srv> LocalDapLeader<DaphneAuth> for DaphneWorker<'srv> {
     type ReportSelector = DaphneServiceReportSelector;
 
     async fn put_report(

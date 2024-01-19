@@ -5,7 +5,7 @@
 
 use std::{collections::HashMap, time::Instant};
 
-use axum::{async_trait, http::Method};
+use axum::http::Method;
 use daphne::{
     auth::BearerTokenProvider,
     constants::DapMediaType,
@@ -42,7 +42,6 @@ pub struct DaphneReportSelector {
     pub max_reports: u64,
 }
 
-#[async_trait]
 impl DapAuthorizedSender<DaphneAuth> for crate::App {
     async fn authorize(
         &self,
@@ -64,7 +63,6 @@ impl DapAuthorizedSender<DaphneAuth> for crate::App {
     }
 }
 
-#[async_trait]
 impl DapLeader<DaphneAuth> for crate::App {
     type ReportSelector = DaphneReportSelector;
 

@@ -11,14 +11,11 @@ use daphne::{
 };
 use daphne_service_utils::auth::DaphneAuth;
 
+use crate::App;
+
 use super::{AxumDapResponse, DapRequestExtractor, DaphneService};
 
-pub(super) fn add_helper_routes<A: DapHelper<DaphneAuth>>(
-    router: super::Router<A>,
-) -> super::Router<A>
-where
-    A: DapHelper<DaphneAuth> + DaphneService + Send + Sync + 'static,
-{
+pub(super) fn add_helper_routes(router: super::Router<App>) -> super::Router<App> {
     router
         .route("/:version/aggregate", post(agg_job))
         .route("/:version/aggregate_share", post(agg_share))
@@ -37,13 +34,10 @@ where
         version = ?req.version
     )
 )]
-async fn agg_job<A>(
-    State(app): State<Arc<A>>,
+async fn agg_job(
+    State(app): State<Arc<App>>,
     DapRequestExtractor(req): DapRequestExtractor,
-) -> AxumDapResponse
-where
-    A: DapHelper<DaphneAuth> + DaphneService + Send + Sync,
-{
+) -> AxumDapResponse {
     AxumDapResponse::from_result(
         match req.media_type {
             DapMediaType::AggregationJobInitReq => {

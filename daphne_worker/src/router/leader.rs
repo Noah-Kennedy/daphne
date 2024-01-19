@@ -5,7 +5,10 @@ use daphne::{
     constants::DapMediaType,
     error::DapAbort,
     messages::{Base64Encode, CollectionJobId, TaskId},
-    roles::{leader, DapLeader},
+    roles::{
+        leader::{self, LocalDapLeader},
+        DapLeader,
+    },
     DapCollectJob, DapRequest, DapResponse, DapVersion,
 };
 use daphne_service_utils::auth::DaphneAuth;
