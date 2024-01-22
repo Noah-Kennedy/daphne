@@ -29,7 +29,10 @@ mod silence_unused_crate_warning {
     use config as _;
     use tracing_subscriber as _;
 }
-use storage_proxy_connection::{kv, Do, Kv};
+use storage_proxy_connection::{
+    durable_objects::{self, RequestQueue},
+    kv, Do, Kv,
+};
 use tokio::sync::RwLock;
 use url::Url;
 
@@ -76,7 +79,7 @@ mod storage_proxy_connection;
 ///     default_version: DapVersion::DraftLatest,
 ///     report_storage_epoch_duration: 300,
 /// };
-/// let app = App::new(worker_url, &registry, service_config)?;
+/// let app = App::new(worker_url, &registry, service_config, 10)?;
 ///
 /// let router = router::new(DapRole::Helper, app);
 ///
@@ -88,6 +91,7 @@ pub struct App {
     worker_url: Url,
     http: reqwest::Client,
     cache: RwLock<kv::Cache>,
+    request_queue: durable_objects::RequestQueue,
     metrics: metrics::DaphneServiceMetrics,
     service_config: DaphneServiceConfig,
 }
@@ -104,18 +108,20 @@ impl App {
         worker_url: Url,
         registry: &prometheus::Registry,
         service_config: DaphneServiceConfig,
+        concurrent_request_limit: usize,
     ) -> Result<Self, DapError> {
         Ok(Self {
             worker_url,
             http: reqwest::Client::new(),
             cache: Default::default(),
+            request_queue: RequestQueue::new(concurrent_request_limit),
             metrics: metrics::DaphneServiceMetrics::register(registry)?,
             service_config,
         })
     }
 
     pub(crate) fn durable(&self) -> Do<'_> {
-        Do::new(&self.worker_url, &self.http)
+        Do::new(&self.worker_url, &self.http, &self.request_queue)
     }
 
     pub(crate) fn kv(&self) -> Kv<'_> {

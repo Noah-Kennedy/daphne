@@ -43,18 +43,4 @@ impl Cache {
             .or_default()
             .insert(key, Box::new(value));
     }
-
-    pub fn delete<P>(&mut self, key: &str) -> GetResult<P::Value>
-    where
-        P: KvPrefix,
-    {
-        match self.kv.get_mut(P::PREFIX) {
-            Some(cache) => match cache.remove(key).map(|t| t.downcast::<P::Value>().ok()) {
-                Some(Some(t)) => GetResult::Found(*t),
-                Some(None) => GetResult::MismatchedType,
-                None => GetResult::NoFound,
-            },
-            None => GetResult::NoFound,
-        }
-    }
 }
