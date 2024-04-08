@@ -701,6 +701,7 @@ impl DapTaskConfig {
                 // Skip report that can't be processed any further.
                 TransitionVar::Failed(failure) => {
                     tracing::warn!(%failure, "rejecting report");
+                    eprintln!("rejecting report due to {failure:?}");
                     metrics.report_inc_by(ReportStatus::Rejected(*failure), 1);
                     continue;
                 }
